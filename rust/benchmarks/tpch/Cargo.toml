@@ -7,10 +7,10 @@ edition = "2018"
 [dependencies]
 ballista = { path="../../ballista" }
 
-arrow = { git = "https://github.com/apache/arrow", rev="7660a22" }
-arrow-flight = { git = "https://github.com/apache/arrow", rev="7660a22" }
-datafusion = { git = "https://github.com/apache/arrow", rev="7660a22" }
-parquet = { git = "https://github.com/apache/arrow", rev="7660a22" }
+arrow = { git = "https://github.com/apache/arrow", rev="8547c61" }
+arrow-flight = { git = "https://github.com/apache/arrow", rev="8547c61" }
+datafusion = { git = "https://github.com/apache/arrow", rev="8547c61" }
+parquet = { git = "https://github.com/apache/arrow", rev="8547c61" }
 
 
 env_logger = "0.8"
