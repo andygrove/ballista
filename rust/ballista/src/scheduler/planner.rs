@@ -16,9 +16,12 @@
 //!
 //! This code is EXPERIMENTAL and still under development
 
+use std::{collections::HashMap, future::Future};
+use std::fs::File;
+use std::io::{BufWriter, Write};
 use std::pin::Pin;
 use std::sync::Arc;
-use std::{collections::HashMap, future::Future};
+use std::time::Instant;
 
 use super::execution_plans::{self, QueryStageExec, ShuffleReaderExec, UnresolvedShuffleExec};
 use crate::client::BallistaClient;
@@ -43,8 +46,14 @@ use datafusion::physical_plan::{
     AggregateExpr, ExecutionPlan, PhysicalExpr, SendableRecordBatchStream,
 };
 use log::{debug, info};
-use std::time::Instant;
 use uuid::Uuid;
+use datafusion::physical_plan::coalesce_batches::CoalesceBatchesExec;
+use datafusion::physical_plan::filter::FilterExec;
+use datafusion::physical_plan::parquet::ParquetExec;
+use datafusion::physical_plan::sort::SortExec;
+use datafusion::physical_plan::projection::ProjectionExec;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 
 type SendableExecutionPlan = Pin<Box<dyn Future<Output = Result<Arc<dyn ExecutionPlan>>> + Send>>;
 type PartialQueryStageResult = (Arc<dyn ExecutionPlan>, Vec<Arc<QueryStageExec>>);
@@ -88,6 +97,11 @@ impl DistributedPlanner {
 
         let now = Instant::now();
         let execution_plans = self.plan_query_stages(&job_uuid, execution_plan)?;
+
+        // until we have a web UI, this gives us a way to view the query plans
+        let dot_file = format!("query-{}.dot", job_uuid);
+        produce_diagram(&dot_file, &execution_plans)?;
+        info!("Query plan diagram written to {}", dot_file);
 
         info!(
             "DistributedPlanner created {} execution plans in {} seconds:",
@@ -354,6 +368,87 @@ async fn execute_query_stage(
     );
 
     Ok(meta)
+}
+
+pub fn produce_diagram(filename: &str, stages: &[Arc<QueryStageExec>]) -> Result<()> {
+    let write_file = File::create(filename)?;
+    let mut w = BufWriter::new(&write_file);
+    write!(w, "digraph G {{\n")?;
+
+    // draw stages and entities
+    for stage in stages {
+        write!(w, "\tsubgraph cluster{} {{\n", stage.stage_id)?;
+        write!(w, "\t\tlabel = \"Stage {}\";\n", stage.stage_id)?;
+        let mut id = AtomicUsize::new(0);
+        build_exec_plan_diagram(&mut w, stage.child.as_ref(), stage.stage_id, &mut id, true)?;
+        write!(w, "\t}}\n")?;
+    }
+
+    // draw relationships
+    for stage in stages {
+        let mut id = AtomicUsize::new(0);
+        build_exec_plan_diagram(&mut w, stage.child.as_ref(), stage.stage_id, &mut id, false)?;
+    }
+
+    write!(w, "}}")?;
+    Ok(())
+}
+
+fn build_exec_plan_diagram(w: &mut BufWriter<&File>,
+                           plan: &dyn ExecutionPlan,
+                           stage_id: usize,
+                           id: &mut AtomicUsize,
+                            draw_entity: bool) -> Result<usize> {
+    let operator_str = if let Some(exec) = plan.as_any().downcast_ref::<HashAggregateExec>() {
+        "HashAggregateExec"
+    } else if let Some(exec) = plan.as_any().downcast_ref::<SortExec>() {
+        "SortExec"
+    } else if let Some(exec) = plan.as_any().downcast_ref::<ProjectionExec>() {
+        "ProjectionExec"
+    } else if let Some(exec) = plan.as_any().downcast_ref::<HashJoinExec>() {
+        "HashJoinExec"
+    } else if let Some(exec) = plan.as_any().downcast_ref::<ParquetExec>() {
+        "ParquetExec"
+    } else if let Some(exec) = plan.as_any().downcast_ref::<CsvExec>() {
+        "CsvExec"
+    } else if let Some(exec) = plan.as_any().downcast_ref::<FilterExec>() {
+        "FilterExec"
+    } else if let Some(exec) = plan.as_any().downcast_ref::<QueryStageExec>() {
+        "QueryStageExec"
+    } else if let Some(exec) = plan.as_any().downcast_ref::<UnresolvedShuffleExec>() {
+        "UnresolvedShuffleExec"
+    } else if let Some(exec) = plan.as_any().downcast_ref::<CoalesceBatchesExec>() {
+        "CoalesceBatchesExec"
+    } else if plan.as_any().downcast_ref::<MergeExec>().is_some() {
+        "MergeExec"
+    } else {
+        println!("Unknown: {:?}", plan);
+        "Unknown"
+    };
+
+    let node_id = id.load(Ordering::SeqCst);
+    id.store(node_id + 1, Ordering::SeqCst);
+
+    if draw_entity {
+        write!(w, "\t\tstage_{}_exec_{} [shape=box, label=\"{}\"];\n", stage_id, node_id, operator_str)?;
+    }
+    for child in plan.children() {
+        if let Some(x) = child.as_any().downcast_ref::<UnresolvedShuffleExec>() {
+            println!("UnresolvedShuffleExec: {:?}", x.query_stage_ids);
+            if !draw_entity {
+                for y in &x.query_stage_ids {
+                    write!(w, "\tstage_{}_exec_{} -> stage_{}_exec_{};\n", y, 1, stage_id, node_id)?;
+                }
+            }
+        } else {
+            // relationships within same entity
+            let child_id = build_exec_plan_diagram(w, child.as_ref(), stage_id, id, draw_entity)?;
+            if draw_entity {
+                write!(w, "\t\tstage_{}_exec_{} -> stage_{}_exec_{};\n", stage_id, child_id, stage_id, node_id)?;
+            }
+        }
+    }
+    Ok(node_id)
 }
 
 #[cfg(test)]

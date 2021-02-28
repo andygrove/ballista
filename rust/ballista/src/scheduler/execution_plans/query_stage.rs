@@ -20,6 +20,8 @@ use async_trait::async_trait;
 use datafusion::physical_plan::{ExecutionPlan, Partitioning};
 use datafusion::{error::Result, physical_plan::RecordBatchStream};
 use uuid::Uuid;
+use crate::scheduler::execution_plans::{ShuffleReaderExec, UnresolvedShuffleExec};
+use std::collections::HashSet;
 
 /// QueryStageExec represents a section of a query plan that has consistent partitioning and
 /// can be executed as one unit with each partition being executed in parallel. The output of
@@ -44,6 +46,27 @@ impl QueryStageExec {
             child,
         })
     }
+
+    /// Get a list of query stages that this query stage depends on as direct children
+    pub fn get_child_stages(&self) -> HashSet<usize> {
+        let mut accum = HashSet::new();
+        find_child_stages(&self.child, &mut accum);
+        accum
+    }
+}
+
+fn find_child_stages(plan: &Arc<dyn ExecutionPlan>, accum: &mut HashSet<usize>) {
+    if let Some(shuffle_reader) = plan.as_any().downcast_ref::<ShuffleReaderExec>() {
+        shuffle_reader.partition_location.iter()
+            .for_each(|loc| {
+                accum.insert(loc.partition_id.stage_id);
+            });
+    } else if let Some(unresolved_shuffle_exec) = plan.as_any().downcast_ref::<UnresolvedShuffleExec>() {
+        for id in &unresolved_shuffle_exec.query_stage_ids {
+            accum.insert(*id);
+        }
+    }
+    plan.children().iter().for_each(|child| find_child_stages(&child, accum));
 }
 
 #[async_trait]
