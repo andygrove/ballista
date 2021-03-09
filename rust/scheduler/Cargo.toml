@@ -25,8 +25,8 @@ sled = "0.34"
 tokio = { version = "1.0", features = ["macros", "rt", "rt-multi-thread"] }
 tonic = "0.4"
 
-arrow = { git = "https://github.com/apache/arrow", rev="5647e90" }
-datafusion = { git = "https://github.com/apache/arrow", rev="5647e90" }
+arrow = { git = "https://github.com/apache/arrow", rev="46161d2" }
+datafusion = { git = "https://github.com/apache/arrow", rev="46161d2" }
 
 [dev-dependencies]
 ballista-core = { path = "../core" }

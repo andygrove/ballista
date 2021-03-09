@@ -224,9 +224,9 @@ message RepartitionNode{
   }
 }
 
-message HashRepartition{
+message HashRepartition {
   repeated LogicalExprNode hash_expr = 1;
-  uint64 batch_size = 2;
+  uint64 partition_count = 2;
 }
 
 message EmptyRelationNode{
@@ -307,6 +307,7 @@ message PhysicalPlanNode {
     FilterExecNode filter = 13;
     MergeExecNode merge = 14;
     UnresolvedShuffleExecNode unresolved = 15;
+    RepartitionExecNode repartition = 16;
   }
 }
 
@@ -409,6 +410,14 @@ message CoalesceBatchesExecNode {
 
 message MergeExecNode {
   PhysicalPlanNode input = 1;
+}
+
+message RepartitionExecNode{
+  PhysicalPlanNode input = 1;
+  oneof partition_method {
+    uint64 round_robin = 2;
+    HashRepartition hash = 3;
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

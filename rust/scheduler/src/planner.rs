@@ -32,10 +32,13 @@ use ballista_core::{
     serde::scheduler::PartitionLocation,
 };
 use datafusion::execution::context::ExecutionContext;
+use datafusion::physical_plan::expressions::Column;
 use datafusion::physical_plan::hash_aggregate::{AggregateMode, HashAggregateExec};
 use datafusion::physical_plan::hash_join::HashJoinExec;
+use datafusion::physical_plan::hash_utils::JoinType;
 use datafusion::physical_plan::merge::MergeExec;
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::repartition::RepartitionExec;
+use datafusion::physical_plan::{ExecutionPlan, Partitioning, PhysicalExpr};
 use log::{debug, info};
 use tokio::task::JoinHandle;
 
@@ -170,7 +173,40 @@ impl DistributedPlanner {
                 AggregateMode::Partial => Ok((agg.with_new_children(children)?, stages)),
             }
         } else if let Some(join) = execution_plan.as_any().downcast_ref::<HashJoinExec>() {
-            Ok((join.with_new_children(children)?, stages))
+            match join.join_type() {
+                JoinType::Inner => {
+                    // we re-partition both inputs on the join keys so that we can parallelize
+                    // the join operation and avoid the need to load one entire side into
+                    // memory for each task. Instead each task will load one partition into
+                    // memory and these tasks can run in parallel
+
+                    let left_keys = join
+                        .on()
+                        .iter()
+                        .map(|on| Arc::new(Column::new(&on.0)) as Arc<dyn PhysicalExpr>)
+                        .collect();
+                    let right_keys = join
+                        .on()
+                        .iter()
+                        .map(|on| Arc::new(Column::new(&on.1)) as Arc<dyn PhysicalExpr>)
+                        .collect();
+
+                    // TODO we need to make this configurable
+                    let num_partitions = 200;
+
+                    let l = Arc::new(RepartitionExec::try_new(
+                        children[0].clone(),
+                        Partitioning::Hash(left_keys, num_partitions),
+                    )?);
+                    let r = Arc::new(RepartitionExec::try_new(
+                        children[1].clone(),
+                        Partitioning::Hash(right_keys, num_partitions),
+                    )?);
+
+                    Ok((join.with_new_children(vec![l, r])?, stages))
+                }
+                _ => Ok((join.with_new_children(children)?, stages)),
+            }
         } else {
             // TODO check for compatible partitioning schema, not just count
             if execution_plan.output_partitioning().partition_count()

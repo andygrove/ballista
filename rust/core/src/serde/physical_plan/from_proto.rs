@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use crate::error::BallistaError;
 use crate::execution_plans::{ShuffleReaderExec, UnresolvedShuffleExec};
+use crate::serde::protobuf::repartition_exec_node::PartitionMethod;
 use crate::serde::protobuf::LogicalExprNode;
 use crate::serde::scheduler::PartitionLocation;
 use crate::serde::{proto_error, protobuf};
@@ -44,7 +45,9 @@ use datafusion::physical_plan::{
     limit::{GlobalLimitExec, LocalLimitExec},
     parquet::ParquetExec,
     projection::ProjectionExec,
+    repartition::RepartitionExec,
     sort::{SortExec, SortOptions},
+    Partitioning,
 };
 use datafusion::physical_plan::{AggregateExpr, ExecutionPlan, PhysicalExpr};
 use datafusion::prelude::CsvReadOptions;
@@ -126,6 +129,24 @@ impl TryInto<Arc<dyn ExecutionPlan>> for &protobuf::PhysicalPlanNode {
             PhysicalPlanType::Merge(merge) => {
                 let input: Arc<dyn ExecutionPlan> = convert_box_required!(merge.input)?;
                 Ok(Arc::new(MergeExec::new(input)))
+            }
+            PhysicalPlanType::Repartition(repart) => {
+                let input: Arc<dyn ExecutionPlan> = convert_box_required!(repart.input)?;
+                match repart.partition_method {
+                    Some(PartitionMethod::Hash(ref xxx)) => {
+                        let expr = xxx
+                            .hash_expr
+                            .iter()
+                            .map(|e| compile_expr(e, &input.schema()))
+                            .collect::<Result<Vec<Arc<dyn PhysicalExpr>>, _>>()?;
+
+                        Ok(Arc::new(RepartitionExec::try_new(
+                            input,
+                            Partitioning::Hash(expr, xxx.partition_count.try_into().unwrap()),
+                        )?))
+                    }
+                    _ => todo!(),
+                }
             }
             PhysicalPlanType::GlobalLimit(limit) => {
                 let input: Arc<dyn ExecutionPlan> = convert_box_required!(limit.input)?;

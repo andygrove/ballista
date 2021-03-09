@@ -836,14 +836,14 @@ impl TryInto<protobuf::LogicalPlanNode> for &LogicalPlan {
                 use protobuf::repartition_node::PartitionMethod;
 
                 let pb_partition_method = match partitioning_scheme {
-                    Partitioning::Hash(exprs, batch_size) => {
+                    Partitioning::Hash(exprs, partition_count) => {
                         PartitionMethod::Hash(protobuf::HashRepartition {
                             hash_expr: exprs.iter().map(|expr| expr.try_into()).collect::<Result<
                                 Vec<_>,
                                 BallistaError,
                             >>(
                             )?,
-                            batch_size: *batch_size as u64,
+                            partition_count: *partition_count as u64,
                         })
                     }
                     Partitioning::RoundRobinBatch(batch_size) => {
@@ -1181,7 +1181,7 @@ impl TryInto<protobuf::ScalarFunction> for &BuiltinScalarFunction {
             BuiltinScalarFunction::Round => Ok(protobuf::ScalarFunction::Round),
             BuiltinScalarFunction::Trunc => Ok(protobuf::ScalarFunction::Trunc),
             BuiltinScalarFunction::Abs => Ok(protobuf::ScalarFunction::Abs),
-            BuiltinScalarFunction::Length => Ok(protobuf::ScalarFunction::Length),
+            BuiltinScalarFunction::OctetLength => Ok(protobuf::ScalarFunction::Length),
             BuiltinScalarFunction::Concat => Ok(protobuf::ScalarFunction::Concat),
             BuiltinScalarFunction::Lower => Ok(protobuf::ScalarFunction::Lower),
             BuiltinScalarFunction::Upper => Ok(protobuf::ScalarFunction::Upper),

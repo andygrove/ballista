@@ -77,7 +77,7 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "arrow"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow?rev=5647e90#5647e900d597fd7790a4bbb6727e65d6ebdc5569"
+source = "git+https://github.com/apache/arrow?rev=46161d2#46161d26fd439c17cd7c7d2a52d5f8e0b1c14726"
 dependencies = [
  "cfg_aliases",
  "chrono",
@@ -100,7 +100,7 @@ dependencies = [
 [[package]]
 name = "arrow-flight"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow?rev=5647e90#5647e900d597fd7790a4bbb6727e65d6ebdc5569"
+source = "git+https://github.com/apache/arrow?rev=46161d2#46161d26fd439c17cd7c7d2a52d5f8e0b1c14726"
 dependencies = [
  "arrow",
  "bytes",
@@ -449,41 +449,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crossbeam"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd01a6eb3daaafa260f6fc94c3a6c36390abc2080e38e3e34ced87393fb77d80"
-dependencies = [
- "cfg-if 1.0.0",
- "crossbeam-channel",
- "crossbeam-deque",
- "crossbeam-epoch",
- "crossbeam-queue",
- "crossbeam-utils",
-]
-
-[[package]]
-name = "crossbeam-channel"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dca26ee1f8d361640700bde38b2c37d8c22b3ce2d360e1fc1c74ea4b0aa7d775"
-dependencies = [
- "cfg-if 1.0.0",
- "crossbeam-utils",
-]
-
-[[package]]
-name = "crossbeam-deque"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94af6efb46fef72616855b036a624cf27ba656ffc9be1b9a3c931cfc7749a9a9"
-dependencies = [
- "cfg-if 1.0.0",
- "crossbeam-epoch",
- "crossbeam-utils",
-]
-
-[[package]]
 name = "crossbeam-epoch"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -494,16 +459,6 @@ dependencies = [
  "lazy_static",
  "memoffset",
  "scopeguard",
-]
-
-[[package]]
-name = "crossbeam-queue"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f6cb3c7f5b8e51bc3ebb73a2327ad4abdbd119dc13223f14f961d2f38486756"
-dependencies = [
- "cfg-if 1.0.0",
- "crossbeam-utils",
 ]
 
 [[package]]
@@ -542,14 +497,13 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow?rev=5647e90#5647e900d597fd7790a4bbb6727e65d6ebdc5569"
+source = "git+https://github.com/apache/arrow?rev=46161d2#46161d26fd439c17cd7c7d2a52d5f8e0b1c14726"
 dependencies = [
  "ahash 0.7.2",
  "arrow",
  "async-trait",
  "chrono",
  "clap",
- "crossbeam",
  "futures",
  "hashbrown",
  "log",
@@ -563,6 +517,8 @@ dependencies = [
  "sha2",
  "sqlparser 0.8.0",
  "tokio",
+ "tokio-stream",
+ "unicode-segmentation",
 ]
 
 [[package]]
@@ -1311,7 +1267,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow?rev=5647e90#5647e900d597fd7790a4bbb6727e65d6ebdc5569"
+source = "git+https://github.com/apache/arrow?rev=46161d2#46161d26fd439c17cd7c7d2a52d5f8e0b1c14726"
 dependencies = [
  "arrow",
  "base64 0.12.3",

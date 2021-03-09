@@ -44,6 +44,7 @@ use datafusion::{
 use datafusion::physical_plan::{
     empty::EmptyExec,
     expressions::{Avg, BinaryExpr, Column, Sum},
+    Partitioning,
 };
 use datafusion::physical_plan::{AggregateExpr, ExecutionPlan, PhysicalExpr};
 
@@ -51,9 +52,11 @@ use datafusion::physical_plan::hash_aggregate::HashAggregateExec;
 use protobuf::physical_plan_node::PhysicalPlanType;
 
 use crate::execution_plans::{ShuffleReaderExec, UnresolvedShuffleExec};
+use crate::serde::protobuf::repartition_exec_node::PartitionMethod;
 use crate::serde::{protobuf, BallistaError};
 use datafusion::physical_plan::functions::{BuiltinScalarFunction, ScalarFunctionExpr};
 use datafusion::physical_plan::merge::MergeExec;
+use datafusion::physical_plan::repartition::RepartitionExec;
 
 impl TryInto<protobuf::PhysicalPlanNode> for Arc<dyn ExecutionPlan> {
     type Error = BallistaError;
@@ -267,6 +270,35 @@ impl TryInto<protobuf::PhysicalPlanNode> for Arc<dyn ExecutionPlan> {
                 physical_plan_type: Some(PhysicalPlanType::Merge(Box::new(
                     protobuf::MergeExecNode {
                         input: Some(Box::new(input)),
+                    },
+                ))),
+            })
+        } else if let Some(exec) = plan.downcast_ref::<RepartitionExec>() {
+            let input: protobuf::PhysicalPlanNode = exec.input().to_owned().try_into()?;
+
+            let pb_partition_method = match exec.partitioning() {
+                Partitioning::Hash(exprs, partition_count) => {
+                    PartitionMethod::Hash(protobuf::HashRepartition {
+                        hash_expr: exprs
+                            .iter()
+                            .map(|expr| expr.clone().try_into())
+                            .collect::<Result<Vec<_>, BallistaError>>()?,
+                        partition_count: *partition_count as u64,
+                    })
+                }
+                Partitioning::RoundRobinBatch(partition_count) => {
+                    PartitionMethod::RoundRobin(*partition_count as u64)
+                }
+                Partitioning::UnknownPartitioning(_) => {
+                    todo!()
+                }
+            };
+
+            Ok(protobuf::PhysicalPlanNode {
+                physical_plan_type: Some(PhysicalPlanType::Repartition(Box::new(
+                    protobuf::RepartitionExecNode {
+                        input: Some(Box::new(input)),
+                        partition_method: Some(pb_partition_method),
                     },
                 ))),
             })

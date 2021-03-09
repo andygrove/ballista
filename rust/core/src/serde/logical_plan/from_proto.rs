@@ -162,13 +162,13 @@ impl TryInto<LogicalPlan> for &protobuf::LogicalPlanNode {
                 let partitioning_scheme = match pb_partition_method {
                     PartitionMethod::Hash(protobuf::HashRepartition {
                         hash_expr: pb_hash_expr,
-                        batch_size,
+                        partition_count,
                     }) => Partitioning::Hash(
                         pb_hash_expr
                             .iter()
                             .map(|pb_expr| pb_expr.try_into())
                             .collect::<Result<Vec<_>, _>>()?,
-                        batch_size as usize,
+                        partition_count as usize,
                     ),
                     PartitionMethod::RoundRobin(batch_size) => {
                         Partitioning::RoundRobinBatch(batch_size as usize)
